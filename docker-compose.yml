@@ -1,15 +1,18 @@
+# All credentials are sourced from the .env file at the project root.
+# Copy .env.example to .env and fill in the required values before running.
+
 services:
   db:
     image: postgres:16-alpine
     volumes:
       - postgres_data:/var/lib/postgresql/data
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
     ports:
-      - "5432:5432"
+      - "${DB_PORT:-5432}:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -26,20 +29,14 @@ services:
       timeout: 5s
       retries: 5
 
-  web:
+  api:
     build: .
-    command: "./bin/thrust ./bin/rails server"
-    volumes:
-      - .:/rails
-    ports:
-      - "3000:80"
+    env_file:
+      - .env
     environment:
-      - RAILS_ENV=development
-      - DB_HOST=db
-      - DB_USERNAME=postgres
-      - DB_PASSWORD=password
-      - REDIS_URL=redis://redis:6379/1
-      - RAILS_MAX_THREADS=5
+      DB_HOST: db          # override to use Docker service name, not localhost
+    ports:
+      - "${PORT:-3000}:${PORT:-3000}"
     depends_on:
       db:
         condition: service_healthy

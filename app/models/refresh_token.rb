@@ -11,6 +11,6 @@ class RefreshToken < ApplicationRecord
   end
 
   def expired?
-    expires_at < Time.current
+    expires_at.past?
   end
 end

@@ -8,5 +8,5 @@ class Product < ApplicationRecord
 
   # Scopes
   scope :by_category, ->(category_id) { where(product_category_id: category_id) }
-  scope :in_stock, -> { where("stock > 0") }
+  scope :in_stock, -> { where(Product.arel_table[:stock].gt(0)) }
 end

@@ -1,6 +1,6 @@
 # Order Payment API
 
-A RESTful API for order and payment management built with Rails 8.1, PostgreSQL, and JWT-based authentication. Integrates with Midtrans as the payment gateway.
+A pure API-only backend for order and payment management, built with Rails 8.1 (API mode), PostgreSQL, and JWT-based authentication. Integrates with Midtrans as the payment gateway. There is no web frontend — all interaction is done via HTTP API requests.
 
 - [Authentication & Authorization Design](doc/auth_design.md)
 
@@ -53,20 +53,20 @@ This starts the following services:
 |---|---|---|
 | `db` | postgres:16-alpine | 5432 |
 | `redis` | redis:7-alpine | 6379 |
-| `web` | Local build (Rails) | 3000 |
+| `api` | Local build (Rails API) | 3000 |
 
 **4. Initialize the database**
 
 In a separate terminal, run:
 
 ```bash
-docker compose exec web rails db:create db:migrate
+docker compose exec api rails db:create db:migrate
 ```
 
 To load seed data:
 
 ```bash
-docker compose exec web rails db:seed
+docker compose exec api rails db:seed
 ```
 
 **5. Verify the server is running**
@@ -168,16 +168,16 @@ http://localhost:3000
 docker compose up -d
 
 # Stream application logs
-docker compose logs -f web
+docker compose logs -f api
 
 # Open a shell inside the Rails container
-docker compose exec web bash
+docker compose exec api bash
 
 # Open the Rails console
-docker compose exec web rails console
+docker compose exec api rails console
 
 # Run database migrations
-docker compose exec web rails db:migrate
+docker compose exec api rails db:migrate
 
 # Stop all services
 docker compose down

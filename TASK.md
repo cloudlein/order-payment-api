@@ -16,14 +16,15 @@
 
 ### Schema Overview
 
-| Table           | Key Columns                                                                 | Status |
-|----------------|-----------------------------------------------------------------------------|--------|
-| `users`         | `email`, `name`, `password_digest`, `otp_code`, `otp_expires_at`, `role`  | [x]    |
-| `products`      | `name`, `description`, `price (decimal 10,2)`, `stock (integer)`           | [x]    |
-| `orders`        | `user_id`, `total_amount (decimal 12,2)`, `status`                         | [x]    |
-| `order_items`   | `order_id`, `product_id`, `quantity`, `price (decimal 10,2)`               | [x]    |
-| `payments`      | `order_id`, `midtrans_transaction_id`, `payment_type`, `gross_amount`, `status`, `raw_response (jsonb)` | [x] |
-| `refresh_tokens`| `user_id`, `token`, `expires_at`, `revoked_at`                             | [x]    |
+| Table                | Key Columns                                                                                             | Status |
+|---------------------|---------------------------------------------------------------------------------------------------------|--------|
+| `users`              | `email`, `name`, `password_digest`, `otp_code`, `otp_expires_at`, `role`                              | [x]    |
+| `products`           | `name`, `description`, `price (decimal 10,2)`, `stock (integer)`, `product_category_id (FK)`          | [x]    |
+| `product_categories` | `name (unique)`, `description`, `parent_id (self-ref FK)`                                             | [x]    |
+| `orders`             | `user_id`, `total_amount (decimal 12,2)`, `status`                                                    | [x]    |
+| `order_items`        | `order_id`, `product_id`, `quantity`, `price (decimal 10,2)`                                          | [x]    |
+| `payments`           | `order_id`, `midtrans_transaction_id`, `payment_type`, `gross_amount`, `status`, `raw_response (jsonb)` | [x] |
+| `refresh_tokens`     | `user_id`, `token`, `expires_at`, `revoked_at`                                                        | [x]    |
 
 ### Tasks
 
@@ -40,9 +41,14 @@
 - [x] Migration: `add_password_digest_to_users`
 - [x] Migration: `create_refresh_tokens`
   - Columns: `user_id (FK)`, `token (NOT NULL, unique index)`, `expires_at (NOT NULL)`, `revoked_at`
+- [x] Migration: `create_product_categories`
+  - Columns: `name (NOT NULL, unique index)`, `description`, `parent_id (self-ref FK, index)`
+- [x] Migration: `add_category_to_products`
+  - Adds: `product_category_id (FK, nullable, index)`
 - [ ] Seeds: Complete fixture data for development/testing
   - 1 admin user, 5 regular users
   - 10 products with varied price and stock
+  - Sample product categories
   - Sample orders, order_items, payments
 
 ---
@@ -53,7 +59,7 @@
 
 - [x] `has_secure_password` (bcrypt via `password_digest`)
 - [x] `has_many :refresh_tokens, dependent: :destroy`
-- [x] `has_many :orders, dependent: :destroy`
+- [ ] `has_many :orders, dependent: :destroy` _(missing from model)_
 - [x] Email validation: `presence: true, uniqueness: true, format: URI::MailTo::EMAIL_REGEXP`
 - [x] Role enum: `{ user: "user", admin: "admin" }`, default: `"user"`
 - [ ] Name validation: `presence: true`
@@ -63,17 +69,28 @@
 
 ### 2.2 Product — `app/models/product.rb`
 
-- [x] Base model created
+- [x] `belongs_to :product_category, optional: true`
 - [ ] `has_many :order_items`
-- [ ] Validations:
-  - `name`: `presence: true, length: { maximum: 255 }`
-  - `price`: `presence: true, numericality: { greater_than: 0 }`
-  - `stock`: `numericality: { greater_than_or_equal_to: 0 }`
-- [ ] Scope `available` — `where("stock > 0")`
+- [x] Validation `name`: `presence: true`
+- [ ] Validation `name`: `length: { maximum: 255 }` _(not yet added)_
+- [x] Validation `price`: `presence: true, numericality: { greater_than: 0 }`
+- [x] Validation `stock`: `numericality: { greater_than_or_equal_to: 0, only_integer: true }`
+- [x] Scope `in_stock` — `where("stock > 0")`
+- [x] Scope `by_category(category_id)` — `where(product_category_id: category_id)`
 - [ ] Instance method `in_stock?` — returns `stock > 0`
-- [ ] Instance method `decrement_stock!(qty)` — reduces stock, raises error if insufficient
+- [ ] Instance method `decrement_stock!(qty)` — reduces stock, raises `InsufficientStockError` if insufficient
 
-### 2.3 Order — `app/models/order.rb`
+### 2.3 ProductCategory — `app/models/product_category.rb`
+
+- [x] `belongs_to :parent, class_name: "ProductCategory", optional: true` (self-referential)
+- [x] `has_many :children, class_name: "ProductCategory", foreign_key: :parent_id, dependent: :nullify`
+- [x] `has_many :products, dependent: :nullify`
+- [x] Validation `name`: `presence: true, uniqueness: { case_sensitive: false }`
+- [x] Validation `description`: `length: { maximum: 1000 }, allow_blank: true`
+- [x] Scope `roots` — `where(parent_id: nil)`
+- [x] Scope `ordered` — `order(:name)`
+
+### 2.4 Order — `app/models/order.rb`
 
 - [x] `belongs_to :user`
 - [ ] `has_many :order_items, dependent: :destroy`
@@ -84,7 +101,7 @@
 - [ ] Scope `for_user(user_id)` — filters by user
 - [ ] Instance method `cancellable?` — returns `true` only if status is `pending`
 
-### 2.4 OrderItem — `app/models/order_item.rb`
+### 2.5 OrderItem — `app/models/order_item.rb`
 
 - [x] `belongs_to :order`
 - [x] `belongs_to :product`
@@ -93,7 +110,7 @@
 - [ ] Instance method `subtotal` — returns `quantity * price`
 - [ ] Callback `before_validation :copy_product_price` — snapshots `product.price` at order time
 
-### 2.5 Payment — `app/models/payment.rb`
+### 2.6 Payment — `app/models/payment.rb`
 
 - [x] `belongs_to :order`
 - [ ] Status enum: `{ pending: "pending", paid: "paid", failed: "failed", refunded: "refunded" }`, default: `"pending"`
@@ -102,7 +119,7 @@
 - [ ] Callback `after_update :sync_order_status` — updates `order.status` to `completed` when payment becomes `paid`
 - [ ] Instance method `paid?` — returns `status == "paid"`
 
-### 2.6 RefreshToken — `app/models/refresh_token.rb`
+### 2.7 RefreshToken — `app/models/refresh_token.rb`
 
 - [x] `belongs_to :user`
 - [x] Validation `token`: `presence: true, uniqueness: true`
@@ -342,7 +359,46 @@ All endpoints are under namespace `/api/v1`.
 ## 7. Routes — `config/routes.rb`
 
 - [x] Health check: `GET /up`
-- [ ] Namespace `api`, `v1`:
+- [ ] Namespace `api`, `v1` — **routes not yet defined**, only health check exists:
+  ```ruby
+  namespace :api do
+    namespace :v1 do
+      # Auth
+      post "auth/register",  to: "auth#register"
+      post "auth/login",     to: "auth#login"
+      post "auth/refresh",   to: "auth#refresh"
+      post "auth/logout",    to: "auth#logout"
+
+      # Products
+      resources :products, only: [:index, :show, :create, :update, :destroy]
+
+      # Product Categories
+      resources :product_categories, only: [:index, :show, :create, :update, :destroy]
+
+      # Orders
+      resources :orders, only: [:index, :show, :create] do
+        member do
+          put :cancel
+        end
+        resource :payment, only: [:create, :show], controller: "payments"
+      end
+
+      # Admin
+      namespace :admin do
+        resources :orders, only: [:index] do
+          member do
+            put :status
+          end
+        end
+      end
+
+      # Webhook
+      post "payments/webhook", to: "payments#webhook"
+    end
+  end
+  ```
+
+
   ```ruby
   namespace :api do
     namespace :v1 do
@@ -386,12 +442,14 @@ All endpoints are under namespace `/api/v1`.
 
 | File | Cases to cover |
 |------|---------------|
-| `user_test.rb` | Valid user creation, email uniqueness, email format, role enum, has_secure_password |
-| `product_test.rb` | Name/price presence, price > 0, stock >= 0, `in_stock?`, `decrement_stock!` |
+| `user_test.rb` | Valid user creation, email uniqueness, email format, role enum, `has_secure_password` |
+| `product_test.rb` | Name/price presence, price > 0, stock >= 0, `in_stock?`, `decrement_stock!`, category association |
+| `product_category_test.rb` | Name uniqueness, parent/children hierarchy, `roots` scope |
 | `order_test.rb` | Associations, status enum, `cancellable?`, total calculation |
 | `order_item_test.rb` | Associations, quantity > 0, `subtotal`, price snapshot callback |
 | `payment_test.rb` | Associations, status enum, `paid?`, signature validation |
 | `refresh_token_test.rb` | `revoked?`, `expired?`, `active` scope, `revoke!`, `generate_for` |
+
 
 ### 8.2 Controller / Integration Tests
 
@@ -411,15 +469,25 @@ All endpoints are under namespace `/api/v1`.
 
 - [x] `Gemfile`: `jwt` gem added
 - [x] `Gemfile`: `pg` (PostgreSQL adapter)
+- [x] `Gemfile`: `rails ~> 8.1.3`
 - [x] Solid Queue, Solid Cache, Solid Cable configured
-- [x] Docker / Dockerfile
+- [x] `docker-compose.yml` — `db` (PostgreSQL 16) + `redis` (7) services only; no `web` service
+- [x] `Dockerfile` — container build config
 - [x] Kamal deploy config (`config/deploy.yml`)
-- [ ] `rack-cors` — add to Gemfile and create `config/initializers/cors.rb`
-  - Allow `GET`, `POST`, `PUT`, `DELETE`, `OPTIONS`
-  - Origins: configure per environment
-- [ ] `config/initializers/jwt.rb` — `JwtHelper` module (encode/decode)
-- [ ] `config/credentials.yml.enc` — add `midtrans.server_key`, `midtrans.client_key`
-- [ ] Add `bcrypt` gem (required by `has_secure_password`)
+- [x] `config/initializers/cors.rb` — file exists, middleware **commented out**
+- [ ] Uncomment and configure `rack-cors` middleware in `config/initializers/cors.rb`
+  - Add `gem "rack-cors"` to `Gemfile`
+  - Allow `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `OPTIONS`
+  - Set allowed origins per environment
+- [ ] `config/initializers/jwt.rb` — `JwtHelper` module — **file not yet created**
+- [ ] `config/credentials.yml.enc` — add `midtrans.server_key`, `midtrans.client_key` — **not yet set**
+- [ ] Uncomment `gem "bcrypt"` in `Gemfile` — required by `has_secure_password`
+- [ ] `app/controllers/concerns/authenticatable.rb` — **not yet created**
+- [ ] `app/controllers/concerns/authorizable.rb` — **not yet created**
+- [ ] `app/controllers/concerns/paginatable.rb` — **not yet created**
+- [ ] `app/errors/` directory — custom error classes — **not yet created**
+- [ ] `app/services/midtrans_service.rb` — **not yet created**
+
 
 ---
 
