@@ -59,13 +59,13 @@
 
 - [x] `has_secure_password` (bcrypt via `password_digest`)
 - [x] `has_many :refresh_tokens, dependent: :destroy`
-- [ ] `has_many :orders, dependent: :destroy` _(missing from model)_
+- [x] `has_many :orders, dependent: :destroy`
 - [x] Email validation: `presence: true, uniqueness: true, format: URI::MailTo::EMAIL_REGEXP`
 - [x] Role enum: `{ user: "user", admin: "admin" }`, default: `"user"`
-- [ ] Name validation: `presence: true`
+- [x] Name validation: `presence: true`
 - [ ] Scope `admin` — `where(role: "admin")`
-- [ ] Instance method `generate_otp!` — sets `otp_code` (6-digit) and `otp_expires_at` (5 min TTL)
-- [ ] Instance method `otp_valid?(code)` — checks code match and expiry
+- [x] Instance method `generate_otp!` — sets `otp_code` (6-digit) and `otp_expires_at` (5 min TTL)
+- [x] Instance method `otp_valid?(code)` — checks code match and expiry (`otp_expires_at > Time.current`)
 
 ### 2.2 Product — `app/models/product.rb`
 
@@ -75,7 +75,7 @@
 - [ ] Validation `name`: `length: { maximum: 255 }` _(not yet added)_
 - [x] Validation `price`: `presence: true, numericality: { greater_than: 0 }`
 - [x] Validation `stock`: `numericality: { greater_than_or_equal_to: 0, only_integer: true }`
-- [x] Scope `in_stock` — `where("stock > 0")`
+- [x] Scope `in_stock` — `where(arel_table[:stock].gt(0))`
 - [x] Scope `by_category(category_id)` — `where(product_category_id: category_id)`
 - [ ] Instance method `in_stock?` — returns `stock > 0`
 - [ ] Instance method `decrement_stock!(qty)` — reduces stock, raises `InsufficientStockError` if insufficient
@@ -101,6 +101,8 @@
 - [ ] Scope `for_user(user_id)` — filters by user
 - [ ] Instance method `cancellable?` — returns `true` only if status is `pending`
 
+  > **Current state:** only `belongs_to :user` defined — all other associations, enum, callbacks, and methods are missing.
+
 ### 2.5 OrderItem — `app/models/order_item.rb`
 
 - [x] `belongs_to :order`
@@ -109,6 +111,8 @@
 - [ ] Validation `price`: `presence: true, numericality: { greater_than: 0 }`
 - [ ] Instance method `subtotal` — returns `quantity * price`
 - [ ] Callback `before_validation :copy_product_price` — snapshots `product.price` at order time
+
+  > **Current state:** only bare associations defined — all validations, callbacks, and methods are missing.
 
 ### 2.6 Payment — `app/models/payment.rb`
 
@@ -119,6 +123,8 @@
 - [ ] Callback `after_update :sync_order_status` — updates `order.status` to `completed` when payment becomes `paid`
 - [ ] Instance method `paid?` — returns `status == "paid"`
 
+  > **Current state:** only `belongs_to :order` defined — all enum, validations, callbacks, and methods are missing.
+
 ### 2.7 RefreshToken — `app/models/refresh_token.rb`
 
 - [x] `belongs_to :user`
@@ -126,7 +132,7 @@
 - [x] Validation `expires_at`: `presence: true`
 - [x] Scope `active` — `where("expires_at > ? AND revoked_at IS NULL", Time.current)`
 - [x] Instance method `revoked?` — returns `revoked_at.present?`
-- [x] Instance method `expired?` — returns `expires_at < Time.current`
+- [x] Instance method `expired?` — returns `expires_at.past?`
 - [ ] Class method `generate_for(user)` — creates token with `SecureRandom.hex(32)`, TTL 30 days
 - [ ] Instance method `revoke!` — sets `revoked_at = Time.current` and saves
 
@@ -359,7 +365,7 @@ All endpoints are under namespace `/api/v1`.
 ## 7. Routes — `config/routes.rb`
 
 - [x] Health check: `GET /up`
-- [ ] Namespace `api`, `v1` — **routes not yet defined**, only health check exists:
+- [ ] Namespace `api`, `v1` — **routes not yet defined**, only health check exists (current `routes.rb` is bare scaffold):
   ```ruby
   namespace :api do
     namespace :v1 do
@@ -470,10 +476,12 @@ All endpoints are under namespace `/api/v1`.
 - [x] `Gemfile`: `jwt` gem added
 - [x] `Gemfile`: `pg` (PostgreSQL adapter)
 - [x] `Gemfile`: `rails ~> 8.1.3`
+- [x] `Gemfile`: `dotenv-rails` added to `development/test` group
 - [x] Solid Queue, Solid Cache, Solid Cable configured
-- [x] `docker-compose.yml` — `db` (PostgreSQL 16) + `redis` (7) services only; no `web` service
+- [x] `docker-compose.yml` — `db` (PostgreSQL 16) + `redis` (7) + `api` (Rails) services; all credentials sourced from `.env`
 - [x] `Dockerfile` — container build config
 - [x] Kamal deploy config (`config/deploy.yml`)
+- [x] `.env.example` — full environment variable template with documentation
 - [x] `config/initializers/cors.rb` — file exists, middleware **commented out**
 - [ ] Uncomment and configure `rack-cors` middleware in `config/initializers/cors.rb`
   - Add `gem "rack-cors"` to `Gemfile`
@@ -481,12 +489,12 @@ All endpoints are under namespace `/api/v1`.
   - Set allowed origins per environment
 - [ ] `config/initializers/jwt.rb` — `JwtHelper` module — **file not yet created**
 - [ ] `config/credentials.yml.enc` — add `midtrans.server_key`, `midtrans.client_key` — **not yet set**
-- [ ] Uncomment `gem "bcrypt"` in `Gemfile` — required by `has_secure_password`
 - [ ] `app/controllers/concerns/authenticatable.rb` — **not yet created**
 - [ ] `app/controllers/concerns/authorizable.rb` — **not yet created**
 - [ ] `app/controllers/concerns/paginatable.rb` — **not yet created**
 - [ ] `app/errors/` directory — custom error classes — **not yet created**
 - [ ] `app/services/midtrans_service.rb` — **not yet created**
+- [ ] `ApplicationController` — `rescue_from` handlers — **not yet added**
 
 
 ---
@@ -495,24 +503,20 @@ All endpoints are under namespace `/api/v1`.
 
 **File:** `.github/workflows/ci.yml`
 
-- [ ] Trigger: `push` and `pull_request` to `main`
-- [ ] Jobs:
-  - [ ] `test` — Setup PostgreSQL service, run `rails db:create db:migrate`, run `rails test`
-  - [ ] `security` — Run `brakeman --no-pager` and `bundler-audit`
-  - [ ] `lint` — Run `rubocop`
+- [x] `.github/workflows/ci.yml` — file exists
+- [ ] Review and verify CI job configuration:
+  - [ ] Trigger: `push` and `pull_request` to `main`
+  - [ ] `test` job — Setup PostgreSQL service, run `rails db:create db:migrate`, run `rails test`
+  - [ ] `security` job — Run `brakeman --no-pager` and `bundler-audit`
+  - [ ] `lint` job — Run `rubocop`
 - [ ] Environment variables in CI: `RAILS_ENV=test`, `DATABASE_URL`, `RAILS_MASTER_KEY`
 
 ---
 
 ## 11. Documentation
 
-- [x] `README.md` (basic scaffold)
-- [ ] Update `README.md`:
-  - Project overview
-  - Prerequisites (Ruby version, PostgreSQL, etc.)
-  - Setup instructions (`bundle install`, `rails db:setup`)
-  - Environment variables reference
-  - How to run tests
+- [x] `README.md` — updated: API-only description, Docker service renamed to `api`, credentials sourced from `.env`
+- [x] `.env.example` — full variable reference with descriptions and legend
 - [ ] `doc/api.md` or OpenAPI spec (`doc/openapi.yml`):
   - All endpoints with request/response examples
   - Authentication flow diagram
@@ -835,7 +839,7 @@ http://localhost:3000/api-docs
 For Docker:
 
 ```bash
-docker compose exec web rails rswag:specs:swaggerize
+docker compose exec api rails rswag:specs:swaggerize
 ```
 
 Then open `http://localhost:3000/api-docs` in a browser.
