@@ -1,0 +1,17 @@
+# Read about fixtures at https://api.rubyonrails.org/classes/ActiveRecord/FixtureSet.html
+
+one:
+  order: one
+  midtrans_transaction_id: MyString
+  payment_type: MyString
+  gross_amount: 9.99
+  status: MyString
+  raw_response: 
+
+two:
+  order: two
+  midtrans_transaction_id: MyString
+  payment_type: MyString
+  gross_amount: 9.99
+  status: MyString
+  raw_response: 
