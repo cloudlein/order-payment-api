@@ -70,9 +70,9 @@
 ### 2.2 Product — `app/models/product.rb`
 
 - [x] `belongs_to :product_category, optional: true`
-- [ ] `has_many :order_items`
+- [x] `has_many :order_items`
 - [x] Validation `name`: `presence: true`
-- [ ] Validation `name`: `length: { maximum: 255 }` _(not yet added)_
+- [x] Validation `name`: `length: { maximum: 255 }`
 - [x] Validation `price`: `presence: true, numericality: { greater_than: 0 }`
 - [x] Validation `stock`: `numericality: { greater_than_or_equal_to: 0, only_integer: true }`
 - [x] Scope `in_stock` — `where(arel_table[:stock].gt(0))`
@@ -504,12 +504,12 @@ All endpoints are under namespace `/api/v1`.
 **File:** `.github/workflows/ci.yml`
 
 - [x] `.github/workflows/ci.yml` — file exists
-- [ ] Review and verify CI job configuration:
-  - [ ] Trigger: `push` and `pull_request` to `main`
-  - [ ] `test` job — Setup PostgreSQL service, run `rails db:create db:migrate`, run `rails test`
-  - [ ] `security` job — Run `brakeman --no-pager` and `bundler-audit`
-  - [ ] `lint` job — Run `rubocop`
-- [ ] Environment variables in CI: `RAILS_ENV=test`, `DATABASE_URL`, `RAILS_MASTER_KEY`
+- [/] Review and verify CI job configuration:
+  - [ ] Trigger: `push` and `pull_request` to `main` _(saat ini hanya trigger ke `master`, perlu update)_
+  - [ ] `test` job — Setup PostgreSQL service, run `rails db:create db:migrate`, run `rails test` _(PostgreSQL service belum dikonfigurasi di CI)_
+  - [x] `security` job — Run `brakeman --no-pager` dan `bundler-audit` (`scan_ruby` job)
+  - [x] `lint` job — Run `rubocop` (`lint` job ada)
+- [ ] Environment variables in CI: `RAILS_ENV=test`, `DATABASE_URL`, `RAILS_MASTER_KEY` _(RAILS_ENV sudah ada, DATABASE_URL & RAILS_MASTER_KEY masih dikomentari)_
 
 ---
 
@@ -981,24 +981,174 @@ end
 - [ ] `PUT /admin/orders/:id/status` — invalid status value → `422` with `{ "error": "Invalid status transition" }`
 - [ ] `PUT /admin/orders/:id/status` — order not found → `404` with `{ "error": "Order not found" }`
 
-### 14.5 Custom Error Classes (Optional)
+### 14.5 Custom Error Classes
 
-For business logic errors, define custom exception classes in `app/errors/`:
+> Semua custom error didefinisikan di `app/errors/` dan di-autoload oleh Rails. Setiap error class mewarisi `StandardError` dan diregister di `ApplicationController` via `rescue_from`.
 
-- [ ] `app/errors/insufficient_stock_error.rb` — raised when `product.stock < requested quantity`
-- [ ] `app/errors/invalid_order_state_error.rb` — raised on invalid order state transitions
-- [ ] `app/errors/invalid_webhook_signature_error.rb` — raised when Midtrans signature is invalid
-- [ ] Register each with `rescue_from` in `ApplicationController` with the appropriate status code
+#### Setup — Base Error
+
+- [ ] Buat `app/errors/application_error.rb` — base class untuk semua custom error
+
+```ruby
+# app/errors/application_error.rb
+class ApplicationError < StandardError
+  attr_reader :status, :code
+
+  def initialize(message = nil, status: :unprocessable_entity, code: nil)
+    super(message)
+    @status = status
+    @code   = code
+  end
+end
+```
+
+#### Error Classes
+
+##### `InsufficientStockError` — Stok produk tidak mencukupi
+
+- [ ] Buat `app/errors/insufficient_stock_error.rb`
+- [ ] HTTP status: `409 Conflict`
+- [ ] Raised di: `Product#decrement_stock!`, `OrdersController#create`
 
 ```ruby
 # app/errors/insufficient_stock_error.rb
-class InsufficientStockError < StandardError; end
-
-# app/controllers/application_controller.rb
-rescue_from InsufficientStockError do |e|
-  render json: { error: e.message }, status: :conflict
+class InsufficientStockError < ApplicationError
+  def initialize(product_name = nil)
+    message = product_name ? "Insufficient stock for product: #{product_name}" : "Insufficient stock"
+    super(message, status: :conflict, code: "INSUFFICIENT_STOCK")
+  end
 end
 ```
+
+##### `InvalidOrderStateError` — Transisi status order tidak valid
+
+- [ ] Buat `app/errors/invalid_order_state_error.rb`
+- [ ] HTTP status: `422 Unprocessable Entity`
+- [ ] Raised di: `OrdersController#cancel`, `Admin::OrdersController#status`
+
+```ruby
+# app/errors/invalid_order_state_error.rb
+class InvalidOrderStateError < ApplicationError
+  def initialize(message = "Invalid order state transition")
+    super(message, status: :unprocessable_entity, code: "INVALID_ORDER_STATE")
+  end
+end
+```
+
+##### `InvalidWebhookSignatureError` — Signature Midtrans tidak valid
+
+- [ ] Buat `app/errors/invalid_webhook_signature_error.rb`
+- [ ] HTTP status: `401 Unauthorized`
+- [ ] Raised di: `MidtransService#verify_signature`, `PaymentsController#webhook`
+
+```ruby
+# app/errors/invalid_webhook_signature_error.rb
+class InvalidWebhookSignatureError < ApplicationError
+  def initialize(message = "Invalid webhook signature")
+    super(message, status: :unauthorized, code: "INVALID_WEBHOOK_SIGNATURE")
+  end
+end
+```
+
+##### `PaymentAlreadyPaidError` — Order sudah terbayar
+
+- [ ] Buat `app/errors/payment_already_paid_error.rb`
+- [ ] HTTP status: `409 Conflict`
+- [ ] Raised di: `PaymentsController#create`
+
+```ruby
+# app/errors/payment_already_paid_error.rb
+class PaymentAlreadyPaidError < ApplicationError
+  def initialize(message = "Order has already been paid")
+    super(message, status: :conflict, code: "PAYMENT_ALREADY_PAID")
+  end
+end
+```
+
+##### `UnauthorizedError` — User tidak terautentikasi
+
+- [ ] Buat `app/errors/unauthorized_error.rb`
+- [ ] HTTP status: `401 Unauthorized`
+- [ ] Raised di: `Authenticatable#authenticate_user!`
+
+```ruby
+# app/errors/unauthorized_error.rb
+class UnauthorizedError < ApplicationError
+  def initialize(message = "Unauthorized")
+    super(message, status: :unauthorized, code: "UNAUTHORIZED")
+  end
+end
+```
+
+##### `ForbiddenError` — User tidak memiliki izin
+
+- [ ] Buat `app/errors/forbidden_error.rb`
+- [ ] HTTP status: `403 Forbidden`
+- [ ] Raised di: `Authorizable#require_admin!`
+
+```ruby
+# app/errors/forbidden_error.rb
+class ForbiddenError < ApplicationError
+  def initialize(message = "Forbidden")
+    super(message, status: :forbidden, code: "FORBIDDEN")
+  end
+end
+```
+
+#### Registrasi `rescue_from` di ApplicationController
+
+- [ ] Tambahkan semua `rescue_from` untuk custom errors ke `app/controllers/application_controller.rb`
+
+```ruby
+# app/controllers/application_controller.rb
+class ApplicationController < ActionController::API
+  # --- Rails built-in errors ---
+  rescue_from ActiveRecord::RecordNotFound do |e|
+    render json: { error: e.message }, status: :not_found
+  end
+
+  rescue_from ActiveRecord::RecordInvalid do |e|
+    render json: { errors: e.record.errors }, status: :unprocessable_entity
+  end
+
+  rescue_from ActionController::ParameterMissing do |e|
+    render json: { error: e.message }, status: :bad_request
+  end
+
+  rescue_from JWT::DecodeError do
+    render json: { error: "Invalid or expired token" }, status: :unauthorized
+  end
+
+  rescue_from JWT::ExpiredSignature do
+    render json: { error: "Token has expired" }, status: :unauthorized
+  end
+
+  # --- Custom application errors ---
+  rescue_from ApplicationError do |e|
+    render json: { error: e.message, code: e.code }.compact, status: e.status
+  end
+end
+```
+
+> **Catatan:** `rescue_from ApplicationError` menangkap semua subclass (`InsufficientStockError`, `InvalidOrderStateError`, dll.) sekaligus karena warisan Ruby. Tidak perlu register masing-masing secara terpisah.
+
+#### Autoload
+
+- [ ] Pastikan Rails autoload `app/errors/` — di Rails 7+ dengan Zeitwerk, folder `app/errors/` sudah di-autoload secara otomatis tanpa konfigurasi tambahan.
+- [ ] Verifikasi dengan menjalankan `rails runner "puts InsufficientStockError"` — tidak boleh raise `NameError`.
+
+#### Penggunaan di Kode
+
+| Error Class | Tempat Digunakan | Contoh |
+|---|---|---|
+| `InsufficientStockError` | `Product#decrement_stock!` | `raise InsufficientStockError.new(name) if stock < qty` |
+| `InvalidOrderStateError` | `OrdersController#cancel` | `raise InvalidOrderStateError unless order.cancellable?` |
+| `InvalidWebhookSignatureError` | `MidtransService#verify_signature` | `raise InvalidWebhookSignatureError unless valid?` |
+| `PaymentAlreadyPaidError` | `PaymentsController#create` | `raise PaymentAlreadyPaidError if order.payment&.paid?` |
+| `UnauthorizedError` | `Authenticatable#authenticate_user!` | `raise UnauthorizedError` |
+| `ForbiddenError` | `Authorizable#require_admin!` | `raise ForbiddenError` |
+
+---
 
 ### 14.6 Testing Error Handling
 
@@ -1009,3 +1159,29 @@ end
 - [ ] Test `422` — submit invalid params for create/update endpoints
 - [ ] Test `409` — attempt to create an order with insufficient stock
 - [ ] Test webhook with an invalid signature → verify `401` response
+
+#### Custom Error Unit Tests — `test/errors/`
+
+- [ ] `test/errors/insufficient_stock_error_test.rb` — verifikasi message, status, code
+- [ ] `test/errors/invalid_order_state_error_test.rb` — verifikasi message default & custom
+- [ ] `test/errors/invalid_webhook_signature_error_test.rb`
+- [ ] `test/errors/payment_already_paid_error_test.rb`
+
+```ruby
+# test/errors/insufficient_stock_error_test.rb
+require "test_helper"
+
+class InsufficientStockErrorTest < ActiveSupport::TestCase
+  test "default message" do
+    error = InsufficientStockError.new
+    assert_equal "Insufficient stock", error.message
+    assert_equal :conflict, error.status
+    assert_equal "INSUFFICIENT_STOCK", error.code
+  end
+
+  test "message includes product name" do
+    error = InsufficientStockError.new("Laptop")
+    assert_equal "Insufficient stock for product: Laptop", error.message
+  end
+end
+```
