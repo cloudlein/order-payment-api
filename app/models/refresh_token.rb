@@ -1,3 +1,4 @@
+require "securerandom"
 class RefreshToken < ApplicationRecord
   belongs_to :user
 
@@ -12,5 +13,19 @@ class RefreshToken < ApplicationRecord
 
   def expired?
     expires_at.past?
+  end
+
+  def self.generate_for(user)
+    create!(
+      user: user,
+      token: SecureRandom.hex(32),
+      expires_at: 30.days.from_now
+    )
+  end
+
+  def revoke!
+    self.revoked_at = Time.current
+
+    save!
   end
 end

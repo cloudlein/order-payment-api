@@ -125,8 +125,8 @@
 - [x] Scope `active` — `where("expires_at > ? AND revoked_at IS NULL", Time.current)`
 - [x] Instance method `revoked?` — returns `revoked_at.present?`
 - [x] Instance method `expired?` — returns `expires_at.past?`
-- [ ] Class method `generate_for(user)` — creates token with `SecureRandom.hex(32)`, TTL 30 days
-- [ ] Instance method `revoke!` — sets `revoked_at = Time.current` and saves
+- [x] Class method `generate_for(user)` — creates token with `SecureRandom.hex(32)`, TTL 30 days
+- [x] Instance method `revoke!` — sets `revoked_at = Time.current` and saves
 
 ---
 
@@ -144,13 +144,18 @@
   - `encode(payload, exp: 24.hours.from_now)` — signs with `Rails.application.secret_key_base`, algorithm `HS256`
   - `decode(token)` — decodes and returns payload hash, raises `JWT::DecodeError` on invalid/expired
 
-### 3.2 Concern: Authenticatable
+### 3.2 Concern: Authenticatable — `app/controllers/concerns/authenticatable.rb`
 
-- [ ] `before_action :authenticate_user!`
-- [ ] Reads `Authorization: Bearer <token>` header
-- [ ] Decodes JWT, finds `User` by `sub` claim
-- [ ] Sets `@current_user`
-- [ ] Returns `401 Unauthorized` with `{ error: "Unauthorized" }` on failure
+- [ ] Include `ActiveSupport::Concern`
+- [ ] Helper method `current_user` — returns `@current_user` (memoized)
+- [ ] Helper method `user_signed_in?` — returns `current_user.present?`
+- [ ] Method `authenticate_user!` (used as a `before_action` filter):
+  - [ ] Extract the token from `Authorization` header (must match `Bearer <token>` format)
+  - [ ] Decode JWT token using `JwtHelper.decode(token)` (which checks signature and expiry)
+  - [ ] Check if the token's `jti` is blacklisted in Redis (optional/required for logout validation)
+  - [ ] Fetch the user from database using the `sub` claim from the payload
+  - [ ] Assign the found user to `@current_user`
+  - [ ] Raise `UnauthorizedError` (mapped to `401 Unauthorized` in `ApplicationController`) if header is missing, format is invalid, signature is expired/invalid, token is blacklisted, or user cannot be found
 
 ### 3.3 Concern: Authorizable
 

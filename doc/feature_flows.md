@@ -13,7 +13,7 @@ sequenceDiagram
     autonumber
     actor Client as Client App
     participant API as Rails API
-    database DB as PostgreSQL DB
+    participant DB as PostgreSQL DB
 
     Note over Client, DB: Registration
     Client->>API: POST /api/v1/auth/register (email, name, password)
@@ -53,7 +53,7 @@ sequenceDiagram
     autonumber
     actor Client as Client App
     participant API as Rails API
-    database DB as PostgreSQL DB
+    participant DB as PostgreSQL DB
 
     Note over Client, DB: Order Creation (POST /api/v1/orders)
     Client->>API: POST /api/v1/orders (order_items_attributes)
@@ -94,7 +94,7 @@ sequenceDiagram
     participant Client as Client App
     participant API as Rails API
     participant Midtrans as Midtrans API
-    database DB as PostgreSQL DB
+    participant DB as PostgreSQL DB
 
     Note over User, Midtrans: 1. Payment Initiation
     Client->>API: POST /api/v1/orders/:order_id/payment
