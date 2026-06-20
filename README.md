@@ -238,4 +238,5 @@ order-payment-api/
 ## Documentation
 
 - [Authentication & Authorization Design](doc/auth_design.md)
-- API Reference: `doc/api.md` _(in progress)_
+- [Feature Flows & Sequence Diagrams](doc/feature_flows.md)
+- [API Reference](doc/api.md)

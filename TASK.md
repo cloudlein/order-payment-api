@@ -63,7 +63,6 @@
 - [x] Email validation: `presence: true, uniqueness: true, format: URI::MailTo::EMAIL_REGEXP`
 - [x] Role enum: `{ user: "user", admin: "admin" }`, default: `"user"`
 - [x] Name validation: `presence: true`
-- [ ] Scope `admin` — `where(role: "admin")`
 - [x] Instance method `generate_otp!` — sets `otp_code` (6-digit) and `otp_expires_at` (5 min TTL)
 - [x] Instance method `otp_valid?(code)` — checks code match and expiry (`otp_expires_at > Time.current`)
 
@@ -77,8 +76,8 @@
 - [x] Validation `stock`: `numericality: { greater_than_or_equal_to: 0, only_integer: true }`
 - [x] Scope `in_stock` — `where(arel_table[:stock].gt(0))`
 - [x] Scope `by_category(category_id)` — `where(product_category_id: category_id)`
-- [ ] Instance method `in_stock?` — returns `stock > 0`
-- [ ] Instance method `decrement_stock!(qty)` — reduces stock, raises `InsufficientStockError` if insufficient
+- [x] Instance method `in_stock?` — returns `stock > 0`
+- [x] Instance method `decrement_stock!(qty)` — reduces stock, raises `InsufficientStockError` if insufficient
 
 ### 2.3 ProductCategory — `app/models/product_category.rb`
 
@@ -93,37 +92,30 @@
 ### 2.4 Order — `app/models/order.rb`
 
 - [x] `belongs_to :user`
-- [ ] `has_many :order_items, dependent: :destroy`
-- [ ] `has_one :payment, dependent: :destroy`
-- [ ] `accepts_nested_attributes_for :order_items`
-- [ ] Status enum: `{ pending: "pending", processing: "processing", completed: "completed", cancelled: "cancelled" }`, default: `"pending"`
-- [ ] Callback `before_create :calculate_total` — sums `order_items` subtotals
+- [x] `has_many :order_items, dependent: :destroy`
+- [x] `has_one :payment, dependent: :destroy`
+- [x] `accepts_nested_attributes_for :order_items`
+- [x] Status enum: `{ pending: "pending", processing: "processing", completed: "completed", cancelled: "cancelled" }`, default: `"pending"`
+- [x] Callback `before_create :calculate_total` — sums `order_items` subtotals
 - [ ] Scope `for_user(user_id)` — filters by user
 - [ ] Instance method `cancellable?` — returns `true` only if status is `pending`
-
-  > **Current state:** only `belongs_to :user` defined — all other associations, enum, callbacks, and methods are missing.
 
 ### 2.5 OrderItem — `app/models/order_item.rb`
 
 - [x] `belongs_to :order`
 - [x] `belongs_to :product`
-- [ ] Validation `quantity`: `presence: true, numericality: { greater_than: 0, only_integer: true }`
-- [ ] Validation `price`: `presence: true, numericality: { greater_than: 0 }`
-- [ ] Instance method `subtotal` — returns `quantity * price`
-- [ ] Callback `before_validation :copy_product_price` — snapshots `product.price` at order time
-
-  > **Current state:** only bare associations defined — all validations, callbacks, and methods are missing.
+- [x] Validation `quantity`: `presence: true, numericality: { greater_than: 0, only_integer: true }`
+- [x] Validation `price`: `presence: true, numericality: { greater_than: 0 }`
+- [x] Instance method `subtotal` — returns `quantity * price`
+- [x] Callback `before_validation :copy_product_price` — snapshots `product.price` at order time
 
 ### 2.6 Payment — `app/models/payment.rb`
 
 - [x] `belongs_to :order`
-- [ ] Status enum: `{ pending: "pending", paid: "paid", failed: "failed", refunded: "refunded" }`, default: `"pending"`
-- [ ] Validation `gross_amount`: `numericality: { greater_than: 0 }`, if present
-- [ ] Validation `midtrans_transaction_id`: `uniqueness: true`, allow nil on create
-- [ ] Callback `after_update :sync_order_status` — updates `order.status` to `completed` when payment becomes `paid`
-- [ ] Instance method `paid?` — returns `status == "paid"`
-
-  > **Current state:** only `belongs_to :order` defined — all enum, validations, callbacks, and methods are missing.
+- [x] Status enum: `{ pending: "pending", paid: "paid", failed: "failed", refunded: "refunded" }`, default: `"pending"`
+- [x] Validation `gross_amount`: `numericality: { greater_than: 0 }`, if present
+- [x] Validation `midtrans_transaction_id`: `uniqueness: true`, allow nil on create
+- [x] Callback `after_update :sync_order_status` — updates `order.status` to `completed` when payment becomes `paid`
 
 ### 2.7 RefreshToken — `app/models/refresh_token.rb`
 
